@@ -1,117 +1,213 @@
-/**
- * Sample React Native App
- * https://github.com/facebook/react-native
- *
- * @format
- */
-
-import React from 'react';
-import type {PropsWithChildren} from 'react';
+import { LegendList } from '@legendapp/list';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import {
-  SafeAreaView,
-  ScrollView,
-  StatusBar,
-  StyleSheet,
   Text,
-  useColorScheme,
   View,
+  StyleSheet,
+  ActivityIndicator,
 } from 'react-native';
 
-import {
-  Colors,
-  DebugInstructions,
-  Header,
-  LearnMoreLinks,
-  ReloadInstructions,
-} from 'react-native/Libraries/NewAppScreen';
-
-type SectionProps = PropsWithChildren<{
+interface PostItem {
+  id: string;
   title: string;
-}>;
+  body: string;
+}
 
-function Section({children, title}: SectionProps): React.JSX.Element {
-  const isDarkMode = useColorScheme() === 'dark';
+const generateMockData = (count: number): PostItem[] => {
+  return Array(count).fill(0).map((_, index) => ({
+    id: `item-${index + 1}`,
+    title: `Post ${index + 1}`,
+    body: 'Lorem ipsum dolor sit amet, consectetur adipiscing elit. Sed do eiusmod tempor incididunt ut labore et dolore magna aliqua. Ut enim ad minim veniam, quis nostrud exercitation ullamco laboris.',
+  }));
+};
+
+const ALL_MOCK_DATA: PostItem[] = generateMockData(1000);
+
+const ITEMS_PER_PAGE = 15;
+
+const keyExtractor = (item: PostItem): string => item.id;
+
+const performHeavyComputation = (): void => {
+  const start = Date.now();
+  while (Date.now() - start < 50) {
+    Math.random() * Math.random();
+  }
+};
+
+interface SlowItemProps {
+  item: PostItem;
+}
+
+const SlowItem: React.FC<SlowItemProps> = React.memo(({ item }) => {
+  performHeavyComputation();
+  performHeavyComputation();
+  performHeavyComputation();
+
+
+  const wastefulArray = useMemo(() => {
+    return Array(50000).fill(0).map((_, i) =>
+      `${item.title}-${i}-${new Date().getTime()}`
+    );
+  }, [item.title]);
+
+  const dynamicFontSize = useMemo(() => {
+    performHeavyComputation();
+    return 14 + (item.id.length % 3);
+  }, [item.id]);
+
   return (
-    <View style={styles.sectionContainer}>
-      <Text
-        style={[
-          styles.sectionTitle,
-          {
-            color: isDarkMode ? Colors.white : Colors.black,
-          },
-        ]}>
-        {title}
+    <View style={styles.itemContainer}>
+      <Text style={[styles.title, { opacity: 0.9 + Math.random() * 0.1 }]}>
+        {item.title}
       </Text>
-      <Text
-        style={[
-          styles.sectionDescription,
-          {
-            color: isDarkMode ? Colors.light : Colors.dark,
-          },
-        ]}>
-        {children}
+      <Text style={[styles.body, { fontSize: dynamicFontSize }]}>
+        {item.body}
+        <Text style={{ height: 0, width: 0, opacity: 0 }}>
+          {wastefulArray[0]}
+        </Text>
       </Text>
+    </View>
+  );
+});
+
+function App(): React.JSX.Element {
+  const [data, setData] = useState<PostItem[]>([]);
+  const [page, setPage] = useState<number>(1);
+  const [loading, setLoading] = useState<boolean>(false);
+  const [endReached, setEndReached] = useState<boolean>(false);
+
+  const loadMockData = useCallback((pageNumber: number = 1, isRefreshing: boolean = false) => {
+    if (endReached && !isRefreshing) {
+      return;
+    }
+
+    setLoading(true);
+
+    setTimeout(() => {
+      const startIndex = (pageNumber - 1) * ITEMS_PER_PAGE;
+      const endIndex = startIndex + ITEMS_PER_PAGE;
+      const newItems = ALL_MOCK_DATA.slice(startIndex, endIndex);
+
+      if (newItems.length === 0 || endIndex >= ALL_MOCK_DATA.length) {
+        setEndReached(true);
+      }
+
+      if (isRefreshing) {
+        setData(newItems);
+      } else {
+        setData(prevData => [...prevData, ...newItems]);
+      }
+
+      setPage(pageNumber);
+      setLoading(false);
+    }, 800);
+  }, [endReached]);
+
+  useEffect(() => {
+    loadMockData();
+
+    return () => {
+      setData([]);
+      setPage(1);
+      setLoading(false);
+      setEndReached(false);
+    };
+  }, []);
+
+  const handleEndReached = useCallback(() => {
+    if (!loading && !endReached) {
+      loadMockData(page + 1);
+    }
+  }, [loading, endReached, page, loadMockData]);
+
+  const renderItem = useCallback(({ item }: { item: PostItem }) => (
+    <SlowItem item={item} />
+  ), []);
+
+  const renderFooter = useCallback(() => {
+    if (!loading) {
+      return null;
+    }
+
+    return (
+      <View style={styles.footerContainer}>
+        <ActivityIndicator size="large" color="#0000ff" />
+      </View>
+    );
+  }, [loading]);
+
+  return (
+    <View style={styles.container}>
+      <LegendList // If you switch to Flatlist the bug won't reproduce
+        data={data}
+        renderItem={renderItem}
+        keyExtractor={keyExtractor}
+        onEndReached={handleEndReached}
+        onEndReachedThreshold={0.5}
+        drawDistance={2500}
+        recycleItems
+        contentContainerStyle={styles.listContainer}
+        ListFooterComponent={renderFooter}
+      />
     </View>
   );
 }
 
-function App(): React.JSX.Element {
-  const isDarkMode = useColorScheme() === 'dark';
-
-  const backgroundStyle = {
-    backgroundColor: isDarkMode ? Colors.darker : Colors.lighter,
-  };
-
-  return (
-    <SafeAreaView style={backgroundStyle}>
-      <StatusBar
-        barStyle={isDarkMode ? 'light-content' : 'dark-content'}
-        backgroundColor={backgroundStyle.backgroundColor}
-      />
-      <ScrollView
-        contentInsetAdjustmentBehavior="automatic"
-        style={backgroundStyle}>
-        <Header />
-        <View
-          style={{
-            backgroundColor: isDarkMode ? Colors.black : Colors.white,
-          }}>
-          <Section title="Step One">
-            Edit <Text style={styles.highlight}>App.tsx</Text> to change this
-            screen and then come back to see your edits.
-          </Section>
-          <Section title="See Your Changes">
-            <ReloadInstructions />
-          </Section>
-          <Section title="Debug">
-            <DebugInstructions />
-          </Section>
-          <Section title="Learn More">
-            Read the docs to discover what to do next:
-          </Section>
-          <LearnMoreLinks />
-        </View>
-      </ScrollView>
-    </SafeAreaView>
-  );
-}
-
 const styles = StyleSheet.create({
-  sectionContainer: {
-    marginTop: 32,
-    paddingHorizontal: 24,
+  container: {
+    flex: 1,
+    backgroundColor: '#f5f5f5',
   },
-  sectionTitle: {
-    fontSize: 24,
-    fontWeight: '600',
+  header: {
+    padding: 16,
+    backgroundColor: '#ffffff',
+    borderBottomWidth: 1,
+    borderBottomColor: '#e0e0e0',
   },
-  sectionDescription: {
-    marginTop: 8,
+  headerText: {
+    fontSize: 20,
+    fontWeight: 'bold',
+  },
+  listContainer: {
+    paddingBottom: 16,
+    flexGrow: 1,
+  },
+  itemContainer: {
+    backgroundColor: '#ffffff',
+    padding: 16,
+    marginHorizontal: 16,
+    marginTop: 16,
+    borderRadius: 8,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.1,
+    shadowRadius: 2,
+    elevation: 2,
+  },
+  title: {
     fontSize: 18,
-    fontWeight: '400',
+    fontWeight: 'bold',
+    marginBottom: 8,
   },
-  highlight: {
-    fontWeight: '700',
+  body: {
+    fontSize: 14,
+    color: '#666666',
+  },
+  footerContainer: {
+    padding: 16,
+    alignItems: 'center',
+  },
+  emptyContainer: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: 20,
+    minHeight: 300,
+  },
+  emptyText: {
+    fontSize: 16,
+    color: '#666666',
+    marginTop: 10,
   },
 });
 
