@@ -74,12 +74,8 @@ function App(): React.JSX.Element {
   const [data, setData] = useState<PostItem[]>([]);
   const [page, setPage] = useState<number>(1);
   const [loading, setLoading] = useState<boolean>(false);
-  const [endReached, setEndReached] = useState<boolean>(false);
 
   const loadMockData = useCallback((pageNumber: number = 1, isRefreshing: boolean = false) => {
-    if (endReached && !isRefreshing) {
-      return;
-    }
 
     setLoading(true);
 
@@ -87,10 +83,6 @@ function App(): React.JSX.Element {
       const startIndex = (pageNumber - 1) * ITEMS_PER_PAGE;
       const endIndex = startIndex + ITEMS_PER_PAGE;
       const newItems = ALL_MOCK_DATA.slice(startIndex, endIndex);
-
-      if (newItems.length === 0 || endIndex >= ALL_MOCK_DATA.length) {
-        setEndReached(true);
-      }
 
       if (isRefreshing) {
         setData(newItems);
@@ -101,7 +93,7 @@ function App(): React.JSX.Element {
       setPage(pageNumber);
       setLoading(false);
     }, 800);
-  }, [endReached]);
+  }, []);
 
   useEffect(() => {
     loadMockData();
@@ -110,15 +102,14 @@ function App(): React.JSX.Element {
       setData([]);
       setPage(1);
       setLoading(false);
-      setEndReached(false);
     };
   }, []);
 
   const handleEndReached = useCallback(() => {
-    if (!loading && !endReached) {
+    if (!loading) {
       loadMockData(page + 1);
     }
-  }, [loading, endReached, page, loadMockData]);
+  }, [loading, page, loadMockData]);
 
   const renderItem = useCallback(({ item }: { item: PostItem }) => (
     <SlowItem item={item} />
